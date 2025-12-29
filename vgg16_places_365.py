@@ -5,28 +5,23 @@
 - [Places: A 10 million Image Database for Scene Recognition](http://places2.csail.mit.edu/PAMI_places.pdf)
 '''
 
-from __future__ import division, print_function
 import os
+
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
 import warnings
 import numpy as np
 
 from keras import backend as K
-from keras.layers import Input
-from keras.layers.core import Activation, Dense, Flatten
-from keras.layers.pooling import MaxPooling2D
+from keras.layers import (Input, Dense, Flatten, MaxPooling2D, Conv2D, Dropout,
+                          GlobalAveragePooling2D, GlobalMaxPooling2D)
 from keras.models import Model
-from keras.layers import Conv2D
 from keras.regularizers import l2
-from keras.layers.core import Dropout
-from keras.layers import GlobalAveragePooling2D
-from keras.layers import GlobalMaxPooling2D
-from keras_applications.imagenet_utils import _obtain_input_shape
-from keras.engine.topology import get_source_inputs
-from keras.utils.data_utils import get_file
-from keras.utils import layer_utils
-from keras.preprocessing import image
-from keras.applications.imagenet_utils import preprocess_input
+from keras.utils import get_source_inputs, get_file
+from keras.applications.vgg16 import preprocess_input
+from keras_applications.vgg16 import _obtain_input_shape  # legacy
+
+from tensorflow.python.keras.utils import layer_utils
 
 WEIGHTS_PATH = 'https://github.com/GKalliatakis/Keras-VGG16-places365/releases/download/v1.0/vgg16-places365_weights_tf_dim_ordering_tf_kernels.h5'
 WEIGHTS_PATH_NO_TOP = 'https://github.com/GKalliatakis/Keras-VGG16-places365/releases/download/v1.0/vgg16-places365_weights_tf_dim_ordering_tf_kernels_notop.h5'
@@ -184,7 +179,7 @@ def VGG16_Places365(include_top=True, weights='places',
 
         x = Dense(4096, activation='relu', name='fc2')(x)
         x = Dropout(0.5, name='drop_fc2')(x)
-        
+
         x = Dense(365, activation='softmax', name="predictions")(x)
 
     else:
@@ -207,12 +202,10 @@ def VGG16_Places365(include_top=True, weights='places',
     if weights == 'places':
         if include_top:
             weights_path = get_file('vgg16-places365_weights_tf_dim_ordering_tf_kernels.h5',
-                                    WEIGHTS_PATH,
-                                    cache_subdir='models')
+                                    WEIGHTS_PATH)
         else:
             weights_path = get_file('vgg16-places365_weights_tf_dim_ordering_tf_kernels_notop.h5',
-                                    WEIGHTS_PATH_NO_TOP,
-                                    cache_subdir='models')
+                                    WEIGHTS_PATH_NO_TOP)
 
         model.load_weights(weights_path)
 
@@ -243,17 +236,17 @@ def VGG16_Places365(include_top=True, weights='places',
 
 
 if __name__ == '__main__':
-    import urllib2
-    import numpy as np
+    from urllib.request import urlopen
     from PIL import Image
     from cv2 import resize
 
-    TEST_IMAGE_URL = 'http://places2.csail.mit.edu/imgs/demo/6.jpg'
+    TEST_IMAGE = 'Places365_val_00000388.jpg'
+    #TEST_IMAGE = 'Places365_val_00001610.jpg'
 
-    image = Image.open(urllib2.urlopen(TEST_IMAGE_URL))
-    image = np.array(image, dtype=np.uint8)
+    image = np.array(Image.open(TEST_IMAGE), dtype=np.float32)
     image = resize(image, (224, 224))
     image = np.expand_dims(image, 0)
+    image = preprocess_input(image)
 
     model = VGG16_Places365(weights='places')
     predictions_to_return = 5
@@ -264,21 +257,20 @@ if __name__ == '__main__':
     file_name = 'categories_places365.txt'
     if not os.access(file_name, os.W_OK):
         synset_url = 'https://raw.githubusercontent.com/csailvision/places365/master/categories_places365.txt'
-        os.system('wget ' + synset_url)
+        class_file = urlopen(synset_url)
+    else:
+        class_file = open(file_name)
+
     classes = list()
-    with open(file_name) as class_file:
-        for line in class_file:
-            classes.append(line.strip().split(' ')[0][3:])
+    for line in class_file:
+        if isinstance(line, bytes):
+            line = line.decode()
+        classes.append(line.strip().split(' ')[0][3:])
     classes = tuple(classes)
+
+    class_file.close()
 
     print('--PREDICTED SCENE CATEGORIES:')
     # output the prediction
-    for i in range(0, 5):
-        print(classes[top_preds[i]])
-
-    # --PREDICTED SCENE CATEGORIES:
-    # cafeteria
-    # food_court
-    # restaurant_patio
-    # banquet_hall
-    # restaurant
+    for ii in top_preds:
+        print(f'{classes[ii]} -> {preds[ii]:.3f}')
