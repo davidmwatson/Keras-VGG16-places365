@@ -21,8 +21,7 @@ from keras.layers import (Input, Dense, Flatten, MaxPooling2D, Conv2D, Dropout,
 from keras.models import Model
 from keras.regularizers import l2
 from keras.utils import get_source_inputs, get_file
-from keras.applications.vgg16 import preprocess_input
-from keras_applications.vgg16 import _obtain_input_shape  # legacy
+from keras.src.applications.imagenet_utils import obtain_input_shape
 
 from tensorflow.python.keras.utils import layer_utils
 
@@ -94,11 +93,11 @@ def VGG16_Hybrid_1365(include_top=True, weights='places',
 
 
     # Determine proper input shape
-    input_shape = _obtain_input_shape(input_shape,
-                                      default_size=224,
-                                      min_size=48,
-                                      data_format=K.image_data_format(),
-                                      require_flatten=include_top)
+    input_shape = obtain_input_shape(input_shape,
+                                     default_size=224,
+                                     min_size=48,
+                                     data_format=K.image_data_format(),
+                                     require_flatten=include_top)
 
 
     if input_tensor is None:
@@ -258,21 +257,21 @@ def VGG16_Hybrid_1365(include_top=True, weights='places',
 
 if __name__ == '__main__':
     from urllib.request import urlopen
-    from PIL import Image
-    from cv2 import resize
+    from keras.utils import load_img, img_to_array
+    from keras.applications.imagenet_utils import preprocess_input
 
     TEST_IMAGE = 'Places365_val_00000388.jpg'
     #TEST_IMAGE = 'Places365_val_00001610.jpg'
 
-    image = np.array(Image.open(TEST_IMAGE), dtype=np.float32)
-    image = resize(image, (224, 224))
-    image = np.expand_dims(image, 0)
-    image = preprocess_input(image)
+    image = load_img(TEST_IMAGE, target_size=(224,224),
+                     interpolation='bilinear', keep_aspect_ratio=True)
+    image = np.expand_dims(img_to_array(image), axis=0)
+    image = preprocess_input(image, mode='caffe')
 
     model = VGG16_Hybrid_1365(weights='places')
     predictions_to_return = 5
     preds = model.predict(image)[0]
-    top_preds = np.argsort(preds)[::-1][0:predictions_to_return]
+    top_preds = np.argsort(preds)[::-1][:predictions_to_return]
 
     # load the class label
     file_name = 'categories_hybrid1365.txt'
@@ -283,28 +282,17 @@ if __name__ == '__main__':
         class_file = open(file_name)
 
     classes = list()
-    counter = 0
     with open(file_name) as class_file:
-        for line in class_file:
+        for i, line in enumerate(class_file):
             if isinstance(line, bytes):
                 line = line.decode()
 
-            if counter <=999:
-                tmp = line[9:]
-
-                if 0 <= counter <= 9:
-                    tmp = tmp[:-2]
-                elif 10 <= counter <= 99:
-                    tmp = tmp[:-3]
-                elif 100 <= counter <= 999:
-                    tmp = tmp[:-4]
-
-                classes.append(tmp)
-
+            if i < 1000:
+                classes.append(
+                    line.strip().split(' ', maxsplit=1)[1].split(',')[0]
+                    )
             else:
                 classes.append(line.strip().split(' ')[0][3:])
-
-            counter +=1
 
     classes = tuple(classes)
 
@@ -314,3 +302,21 @@ if __name__ == '__main__':
     # output the prediction
     for ii in top_preds:
         print(f'{classes[ii]} -> {preds[ii]:.3f}')
+
+    """
+    Places365_val_00000388.jpg
+    --------------------------
+    monastery 663 -> 0.378
+    cinema -> 0.131
+    palace 698 -> 0.070
+    mosque 668 -> 0.065
+    triumphal arch 873 -> 0.063
+
+    Places365_val_00001610.jpg
+    --------------------------
+    triumphal arch 873 -> 0.842
+    vault 884 -> 0.055
+    monastery 663 -> 0.040
+    castle 483 -> 0.016
+    viaduct 888 -> 0.016
+    """

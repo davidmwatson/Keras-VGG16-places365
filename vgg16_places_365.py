@@ -18,8 +18,7 @@ from keras.layers import (Input, Dense, Flatten, MaxPooling2D, Conv2D, Dropout,
 from keras.models import Model
 from keras.regularizers import l2
 from keras.utils import get_source_inputs, get_file
-from keras.applications.vgg16 import preprocess_input
-from keras_applications.vgg16 import _obtain_input_shape  # legacy
+from keras.src.applications.imagenet_utils import obtain_input_shape
 
 from tensorflow.python.keras.utils import layer_utils
 
@@ -90,11 +89,11 @@ def VGG16_Places365(include_top=True, weights='places',
 
 
     # Determine proper input shape
-    input_shape = _obtain_input_shape(input_shape,
-                                      default_size=224,
-                                      min_size=48,
-                                      data_format=K.image_data_format(),
-                                      require_flatten =include_top)
+    input_shape = obtain_input_shape(input_shape,
+                                     default_size=224,
+                                     min_size=48,
+                                     data_format=K.image_data_format(),
+                                     require_flatten =include_top)
 
     if input_tensor is None:
         img_input = Input(shape=input_shape)
@@ -237,21 +236,21 @@ def VGG16_Places365(include_top=True, weights='places',
 
 if __name__ == '__main__':
     from urllib.request import urlopen
-    from PIL import Image
-    from cv2 import resize
+    from keras.utils import load_img, img_to_array
+    from keras.applications.imagenet_utils import preprocess_input
 
     TEST_IMAGE = 'Places365_val_00000388.jpg'
     #TEST_IMAGE = 'Places365_val_00001610.jpg'
 
-    image = np.array(Image.open(TEST_IMAGE), dtype=np.float32)
-    image = resize(image, (224, 224))
-    image = np.expand_dims(image, 0)
-    image = preprocess_input(image)
+    image = load_img(TEST_IMAGE, target_size=(224,224),
+                     interpolation='bilinear', keep_aspect_ratio=True)
+    image = np.expand_dims(img_to_array(image), axis=0)
+    image = preprocess_input(image, mode='caffe')
 
     model = VGG16_Places365(weights='places')
     predictions_to_return = 5
     preds = model.predict(image)[0]
-    top_preds = np.argsort(preds)[::-1][0:predictions_to_return]
+    top_preds = np.argsort(preds)[::-1][:predictions_to_return]
 
     # load the class label
     file_name = 'categories_places365.txt'
@@ -274,3 +273,21 @@ if __name__ == '__main__':
     # output the prediction
     for ii in top_preds:
         print(f'{classes[ii]} -> {preds[ii]:.3f}')
+
+    """
+    Places365_val_00000388.jpg
+    --------------------------
+    library/outdoor -> 0.251
+    courtyard -> 0.142
+    industrial_area -> 0.094
+    plaza -> 0.083
+    museum/outdoor -> 0.076
+
+    Places365_val_00001610.jpg
+    --------------------------
+    aqueduct -> 0.905
+    arch -> 0.034
+    amphitheater -> 0.020
+    ruin -> 0.018
+    kasbah -> 0.005
+    """
