@@ -201,10 +201,12 @@ def VGG16_Places365(include_top=True, weights='places',
     if weights == 'places':
         if include_top:
             weights_path = get_file('vgg16-places365_weights_tf_dim_ordering_tf_kernels.h5',
-                                    WEIGHTS_PATH)
+                                    WEIGHTS_PATH,
+                                    cache_subdir='models')
         else:
             weights_path = get_file('vgg16-places365_weights_tf_dim_ordering_tf_kernels_notop.h5',
-                                    WEIGHTS_PATH_NO_TOP)
+                                    WEIGHTS_PATH_NO_TOP,
+                                    cache_subdir='models')
 
         model.load_weights(weights_path)
 
